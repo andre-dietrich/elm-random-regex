@@ -3,9 +3,10 @@ module Main exposing (..)
 import Html exposing (..)
 import Html.Events exposing (..)
 import Random
-import RegexGenerator exposing (..)
+import Random.Regex exposing (..)
 
 
+main : Program Never Model Msg
 main =
     Html.program
         { init = init
@@ -44,12 +45,12 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Roll ->
-            case RegexGenerator.regexGen model.pattern of
-                Ok ( _, stream, result ) ->
+            case Random.Regex.regex_ ASCII 20 model.pattern of
+                Ok result ->
                     ( model, Random.generate NewFace result )
 
-                Err _ ->
-                    ( { model | result = "ERROR" }, Cmd.none )
+                Err msg ->
+                    ( { model | result = msg }, Cmd.none )
 
         NewFace newFace ->
             ( { model | result = newFace }, Cmd.none )
@@ -75,6 +76,6 @@ view : Model -> Html Msg
 view model =
     div []
         [ h1 [] [ text (toString model.result) ]
-        , textarea [ onInput Update ] [ text model.pattern ]
+        , input [ onInput Update ] [ text model.pattern ]
         , button [ onClick Roll ] [ text "Roll" ]
         ]
