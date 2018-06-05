@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
     "summary": "String generator from Regex",
-    "repository": "https://github.com/user/project.git",
+    "repository": "https://github.com/andre-dietrich/elm-random-regex.git",
     "license": "BSD3",
     "source-directories": [
         "src"
