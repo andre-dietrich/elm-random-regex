@@ -12,7 +12,7 @@ main =
         { init = init
         , view = view
         , update = update
-        , subscriptions = subscriptions
+        , subscriptions = \_ -> Sub.none
         }
 
 
@@ -37,35 +37,26 @@ init =
 
 type Msg
     = Update String
-    | Roll
-    | NewFace String
+    | Generate
+    | GenResult String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        Roll ->
-            case Random.Regex.regex_ ASCII 20 model.pattern of
+        Generate ->
+            case Random.Regex.generate ASCII 200 model.pattern of
                 Ok result ->
-                    ( model, Random.generate NewFace result )
+                    ( model, Random.generate GenResult result )
 
                 Err msg ->
                     ( { model | result = msg }, Cmd.none )
 
-        NewFace newFace ->
-            ( { model | result = newFace }, Cmd.none )
+        GenResult str ->
+            ( { model | result = str }, Cmd.none )
 
         Update str ->
             ( { model | pattern = str }, Cmd.none )
-
-
-
--- SUBSCRIPTIONS
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.none
 
 
 
@@ -75,7 +66,9 @@ subscriptions model =
 view : Model -> Html Msg
 view model =
     div []
-        [ h1 [] [ text (toString model.result) ]
-        , input [ onInput Update ] [ text model.pattern ]
-        , button [ onClick Roll ] [ text "Roll" ]
+        [ input [ onInput Update ] [ text model.pattern ]
+        , button [ onClick Generate ] [ text "Generate" ]
+        , br [] []
+        , br [] []
+        , div [] [ text model.result ]
         ]

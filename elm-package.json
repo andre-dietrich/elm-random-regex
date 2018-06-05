@@ -4,9 +4,10 @@
     "repository": "https://github.com/andre-dietrich/elm-random-regex.git",
     "license": "BSD3",
     "source-directories": [
-        "src"
+        "src",
+        "examples"
     ],
-    "exposed-modules": [],
+    "exposed-modules": ["Random.Regex"],
     "dependencies": {
         "elm-lang/core": "5.1.1 <= v < 6.0.0",
         "elm-lang/html": "2.0.0 <= v < 3.0.0",

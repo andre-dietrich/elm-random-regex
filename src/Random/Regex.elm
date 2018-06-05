@@ -2,9 +2,19 @@ module Random.Regex
     exposing
         ( Encoding(..)
         , ascii
-        , generator
+        , generate
         , unicode
         )
+
+{-| This library helps you generate random strings from regular expressions.
+
+It is not tested yet, but in most cases it works. What is missing so far, is
+
+@docs ascii, generate, unicode
+
+@docs Encoding
+
+-}
 
 import Char
 import Combine exposing (..)
@@ -20,29 +30,54 @@ type alias State =
     }
 
 
+{-| Encoding defines the type of random characters to generate, for example for
+the `.` dot operator.
+
+    - `ASCII` : will generate values between 0 and 255
+    - `UNICODE` : will generate 16 bit values
+
+-}
 type Encoding
     = ASCII
     | UNICODE
 
 
-generator : Encoding -> Int -> String -> Result String (Random.Generator String)
-generator encoding infinity pattern =
+{-| Create a generator that produces strings based on regular expressions.
+
+    generate ASCII 200 "a-z*" of
+        Ok result ->
+            ( model, Random.generate GenResult result )
+
+        Err msg ->
+            ( { model | result = msg }, Cmd.none )
+
+-}
+generate : Encoding -> Int -> String -> Result String (Random.Generator String)
+generate encoding infinity pattern =
     case runParser regexParser (State encoding infinity) pattern of
         Ok ( _, _, rand ) ->
-            Ok rand
+            Ok rand |> Debug.log "fuck"
 
         Err ( _, _, errors ) ->
             Err (String.join " or " errors)
 
 
+{-| Create a generator that produces ASCII strings based on a regular
+expression. Infinty is set to max 100, if you are using modifiers such as
+`*` or `+`. It is a shortcut for function `generate`.
+-}
 ascii : String -> Result String (Random.Generator String)
 ascii =
-    generator ASCII 100
+    generate ASCII 100
 
 
+{-| Create a generator that produces UNICODE strings based on a regular
+expression. Infinty is set to max 100, if you are using modifiers such as
+`*` or `+`. It is a shortcut for function `generate`.
+-}
 unicode : String -> Result String (Random.Generator String)
 unicode =
-    generator UNICODE 100
+    generate UNICODE 100
 
 
 regexParser : Parser State (Generator String)
@@ -57,33 +92,25 @@ regexParser =
 options : Parser State (Generator (List Int))
 options =
     let
-        modifiers =
-            choice
-                [ non_greedy 0 <$> (string "*?" *> infinity) <*> regex_regex
-                , repeat 0 <$> (string "*" *> infinity)
-                , non_greedy 1 <$> (string "+?" *> infinity) <*> regex_regex
-                , repeat 1 <$> (string "+" *> infinity)
-                , string "?" $> repeat 0 1
-                , (\i -> repeat i i) <$> braces (maybe (string ",") *> int)
-                , repeat <$> braces (int <* string ",") <*> infinity
-                , braces (repeat <$> int <*> (string "," *> int))
-                ]
-
         helper () =
-            (\a b ->
-                case b of
-                    Just fn ->
-                        fn a
+            (\rand quantifier greedy ->
+                case ( quantifier, greedy ) of
+                    ( Just fn, Nothing ) ->
+                        fn rand
+
+                    ( Just fn, Just re ) ->
+                        non_greedy re <| fn rand
 
                     _ ->
-                        a
+                        rand
             )
                 <$> choice
                         [ choice_
                         , group_
                         , singletons
                         ]
-                <*> maybe modifiers
+                <*> maybe quantifiers
+                <*> maybe (string "?" *> regex_regex)
     in
     lazy helper
 
@@ -91,6 +118,18 @@ options =
 (...) : Int -> Int -> Generator Int
 (...) from to =
     Random.int from to
+
+
+quantifiers : Parser State (Generator (List Int) -> Generator (List Int))
+quantifiers =
+    choice
+        [ repeat 0 <$> (string "*" *> infinity)
+        , repeat 1 <$> (string "+" *> infinity)
+        , repeat 0 1 <$ string "?"
+        , (\i -> repeat i i) <$> braces (maybe (string ",") *> int)
+        , repeat <$> braces (int <* string ",") <*> infinity
+        , braces (repeat <$> int <*> (string "," *> int))
+        ]
 
 
 singletons : Parser State (Generator (List Int))
@@ -136,7 +175,7 @@ range_ =
 
 constat_ : Parser State (Generator Int)
 constat_ =
-    (string2code >> RandomX.constant) <$> regex "[^\\[\\]\\(\\)\\|]"
+    (string2code >> RandomX.constant) <$> regex "[^\\[\\]\\(\\)\\|\\?]"
 
 
 choice_ : Parser State (Generator (List Int))
@@ -158,10 +197,9 @@ regex_regex =
     Regex.regex <$> regex "(\\[\\^?[^\\]]+\\]|\\([^\\)]+\\)|\\w)([+*]|\\{[^\\}]\\})?"
 
 
-non_greedy : Int -> Int -> Regex.Regex -> Generator (List Int) -> Generator (List Int)
-non_greedy from to re p =
+non_greedy : Regex.Regex -> Generator (List Int) -> Generator (List Int)
+non_greedy re p =
     p
-        |> repeat from to
         |> RandomX.filter (List.map Char.fromCode >> String.fromList >> Debug.log "Fuck" >> Regex.contains re >> not)
 
 
