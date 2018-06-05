@@ -56,7 +56,7 @@ generate : Encoding -> Int -> String -> Result String (Random.Generator String)
 generate encoding infinity pattern =
     case runParser regexParser (State encoding infinity) pattern of
         Ok ( _, _, rand ) ->
-            Ok rand |> Debug.log "fuck"
+            Ok rand
 
         Err ( _, _, errors ) ->
             Err (String.join " or " errors)
@@ -200,7 +200,12 @@ regex_regex =
 non_greedy : Regex.Regex -> Generator (List Int) -> Generator (List Int)
 non_greedy re p =
     p
-        |> RandomX.filter (List.map Char.fromCode >> String.fromList >> Debug.log "Fuck" >> Regex.contains re >> not)
+        |> RandomX.filter
+            (List.map Char.fromCode
+                >> String.fromList
+                >> Regex.contains re
+                >> not
+            )
 
 
 repeat : Int -> Int -> Generator (List Int) -> Generator (List Int)
