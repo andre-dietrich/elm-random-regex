@@ -1,5 +1,5 @@
 {
-    "version": "1.0.1",
+    "version": "1.0.2",
     "summary": "String generator from Regex",
     "repository": "https://github.com/andre-dietrich/elm-random-regex.git",
     "license": "BSD3",
