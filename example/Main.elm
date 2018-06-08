@@ -70,5 +70,5 @@ view model =
         , button [ onClick Generate ] [ text "Generate" ]
         , br [] []
         , br [] []
-        , div [] [ text model.result ]
+        , pre [] [ code [] [ text model.result ] ]
         ]

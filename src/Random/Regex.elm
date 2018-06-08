@@ -91,21 +91,21 @@ generate encoding infinity pattern =
 
 
 {-| Create a generator that produces ASCII strings based on a regular
-expression. Infinty is set to max 100, if you are using modifiers such as
+expression. Infinty is set to max 250, if you are using modifiers such as
 `*` or `+`. It is a shortcut for function `generate`.
 -}
-ascii : String -> Result String (Random.Generator String)
+ascii : String -> Result String (Generator String)
 ascii =
-    generate ASCII 100
+    generate ASCII 250
 
 
 {-| Create a generator that produces UNICODE strings based on a regular
-expression. Infinty is set to max 100, if you are using modifiers such as
+expression. Infinty is set to max 250, if you are using modifiers such as
 `*` or `+`. It is a shortcut for function `generate`.
 -}
-unicode : String -> Result String (Random.Generator String)
+unicode : String -> Result String (Generator String)
 unicode =
-    generate UNICODE 100
+    generate UNICODE 250
 
 
 regexParser : Parser State (Generator String)
@@ -183,15 +183,27 @@ infinity =
 
 dot_ : Parser State (Generator Int)
 dot_ =
-    (\encoding ->
-        case encoding of
-            ASCII ->
-                32 ... (2 ^ 8)
+    random_dot <$> (string "." *> encoding)
 
-            UNICODE ->
-                32 ... (2 ^ 16)
-    )
-        <$> (string "." *> encoding)
+
+random_dot : Encoding -> Generator Int
+random_dot encoding =
+    case encoding of
+        ASCII ->
+            32 ... (2 ^ 8)
+
+        UNICODE ->
+            32 ... (2 ^ 16)
+
+
+random_dotX : Encoding -> Generator Int
+random_dotX encoding =
+    case encoding of
+        ASCII ->
+            10 ... (2 ^ 8)
+
+        UNICODE ->
+            10 ... (2 ^ 16)
 
 
 range_ : Parser State (Generator Int)
@@ -208,7 +220,14 @@ constat_ =
 
 choice_ : Parser State (Generator (List Int))
 choice_ =
-    RandomX.choices <$> brackets (many singletons)
+    (\re enc ->
+        enc
+            |> random_dotX
+            |> Random.map List.singleton
+            |> RandomX.filter (regex_filter <| Regex.regex re)
+    )
+        <$> regex "\\[[^\\]]*\\]"
+        <*> encoding
 
 
 group_ : Parser State (Generator (List Int))
@@ -229,11 +248,14 @@ non_greedy : Regex.Regex -> Generator (List Int) -> Generator (List Int)
 non_greedy re p =
     p
         |> RandomX.filter
-            (List.map Char.fromCode
-                >> String.fromList
-                >> Regex.contains re
-                >> not
-            )
+            (regex_filter re >> not)
+
+
+regex_filter : Regex.Regex -> List Int -> Bool
+regex_filter re =
+    List.map Char.fromCode
+        >> String.fromList
+        >> Regex.contains re
 
 
 repeat : Int -> Int -> Generator (List Int) -> Generator (List Int)
