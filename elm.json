@@ -3,7 +3,7 @@
     "name": "andre-dietrich/elm-random-regex",
     "summary": "Generate random strings from regular expressions.",
     "license": "MIT",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "exposed-modules": [
         "Random.Regex"
     ],
