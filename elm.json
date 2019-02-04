@@ -16,5 +16,7 @@
         "elm-community/random-extra": "3.0.0 <= v < 4.0.0",
         "pilatch/flip": "1.0.0 <= v < 2.0.0"
     },
-    "test-dependencies": {}
+    "test-dependencies": {
+        "elm-explorations/test": "1.2.1 <= v < 2.0.0"
+    }
 }

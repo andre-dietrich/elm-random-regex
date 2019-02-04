@@ -338,7 +338,7 @@ filter fn enc =
 
 string2code : String -> Int
 string2code =
-    String.toList >> List.head >> Maybe.withDefault ' ' >> Char.toCode
+    String.toList >> List.head >> Maybe.withDefault '\u{0000}' >> Char.toCode
 
 
 hex_string : String -> Generator Int

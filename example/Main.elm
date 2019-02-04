@@ -54,7 +54,7 @@ update msg model =
                     ( { model | result = info }, Cmd.none )
 
         GenResult str ->
-            ( { model | result = str }, Cmd.none )
+            ( { model | result = "\"" ++ str ++ "\"" }, Cmd.none )
 
         Update str ->
             ( { model | pattern = str }, Cmd.none )
