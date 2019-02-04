@@ -1,18 +1,19 @@
-module Main exposing (..)
+module Main exposing (Model, Msg(..), init, main, update, view)
 
+import Browser
 import Html exposing (..)
 import Html.Events exposing (..)
 import Random
 import Random.Regex exposing (..)
 
 
-main : Program Never Model Msg
+main : Program () Model Msg
 main =
-    Html.program
+    Browser.element
         { init = init
-        , view = view
         , update = update
         , subscriptions = \_ -> Sub.none
+        , view = view
         }
 
 
@@ -26,8 +27,8 @@ type alias Model =
     }
 
 
-init : ( Model, Cmd Msg )
-init =
+init : () -> ( Model, Cmd Msg )
+init _ =
     ( Model "" "", Cmd.none )
 
 
@@ -49,8 +50,8 @@ update msg model =
                 Ok result ->
                     ( model, Random.generate GenResult result )
 
-                Err msg ->
-                    ( { model | result = msg }, Cmd.none )
+                Err info ->
+                    ( { model | result = info }, Cmd.none )
 
         GenResult str ->
             ( { model | result = str }, Cmd.none )

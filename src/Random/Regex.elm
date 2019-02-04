@@ -152,11 +152,11 @@ quantifiers : Parser State (Generator (List Int) -> Generator (List Int))
 quantifiers =
     choice
         [ string "*" |> keep infinity |> map (repeat 0)
-        , map (repeat 1) (string "+" |> keep infinity)
+        , string "+" |> keep infinity |> map (repeat 1)
         , string "?" |> onsuccess (repeat 0 1)
-        , braces (maybe (string ",") |> keep int) |> map (\i -> repeat i i)
+        , braces (maybe (string ",") |> keep int |> map (\i -> repeat i i))
         , braces (int |> ignore (string ",")) |> map repeat |> andMap infinity
-        , braces ((string "," |> keep int) |> map repeat |> andMap int)
+        , braces (int |> ignore (string ",") |> map repeat |> andMap int)
         ]
 
 
