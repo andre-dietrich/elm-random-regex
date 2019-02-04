@@ -1,10 +1,7 @@
-module Random.Regex
-    exposing
-        ( Encoding(..)
-        , ascii
-        , generate
-        , unicode
-        )
+module Random.Regex exposing
+    ( ascii, generate, unicode
+    , Encoding(..)
+    )
 
 {-| This library helps you generate random strings from regular expressions.
 
@@ -19,7 +16,7 @@ Tested regular expressions:
     `August 12, 1943`
 
   - _Time_ :
-    "(1[0-2]|0[1-9])(:[0-5]\d){2} (A|P)M"
+    "(1[0-2]|0[1-9])(:[0-5]\\d){2} (A|P)M"
 
     `06:01:34 AM`
 
@@ -29,7 +26,7 @@ Tested regular expressions:
     `1744620aca430ed0a084aa294b2651e7c78be09e`
 
   - _Currency_ :
-    "$([1-9]{1,3}(,\d{3}){0,3}|([1-9]{1,3}))(.\d{2})?"
+    "$([1-9]{1,3}(,\\d{3}){0,3}|([1-9]{1,3}))(.\\d{2})?"
 
     `$357,595,758,499.02`
 
@@ -81,8 +78,8 @@ type Encoding
 
 -}
 generate : Encoding -> Int -> String -> Result String (Random.Generator String)
-generate encoding infinity pattern =
-    case runParser regexParser (State encoding infinity) pattern of
+generate enc inf pattern =
+    case runParser regexParser (State enc inf) pattern of
         Ok ( _, _, rand ) ->
             Ok rand
 
@@ -110,65 +107,64 @@ unicode =
 
 regexParser : Parser State (Generator String)
 regexParser =
-    RandomX.combine
-        >> Random.map List.concat
-        >> Random.map (List.map Char.fromCode)
-        >> Random.map String.fromList
-        <$> many options
+    many options
+        |> map
+            (RandomX.combine
+                >> Random.map List.concat
+                >> Random.map (List.map Char.fromCode)
+                >> Random.map String.fromList
+            )
 
 
 options : Parser State (Generator (List Int))
 options =
     let
         helper () =
-            (\rand quantifier greedy ->
-                case ( quantifier, greedy ) of
-                    ( Just fn, Nothing ) ->
-                        fn rand
+            choice
+                [ choice_
+                , group_
+                , singletons
+                ]
+                |> map
+                    (\rand quantifier greedy ->
+                        case ( quantifier, greedy ) of
+                            ( Just fn, Nothing ) ->
+                                fn rand
 
-                    ( Just fn, Just re ) ->
-                        non_greedy re <| fn rand
+                            ( Just fn, Just re ) ->
+                                non_greedy re <| fn rand
 
-                    _ ->
-                        rand
-            )
-                <$> choice
-                        [ choice_
-                        , group_
-                        , singletons
-                        ]
-                <*> maybe quantifiers
-                <*> maybe (string "?" *> regex_regex)
+                            _ ->
+                                rand
+                    )
+                |> andMap (maybe quantifiers)
+                |> andMap (maybe (string "?" |> keep regex_regex))
     in
     lazy helper
 
 
-(...) : Int -> Int -> Generator Int
-(...) from to =
+range : Int -> Int -> Generator Int
+range from to =
     Random.int from to
 
 
 quantifiers : Parser State (Generator (List Int) -> Generator (List Int))
 quantifiers =
     choice
-        [ repeat 0 <$> (string "*" *> infinity)
-        , repeat 1 <$> (string "+" *> infinity)
-        , repeat 0 1 <$ string "?"
-        , (\i -> repeat i i) <$> braces (maybe (string ",") *> int)
-        , repeat <$> braces (int <* string ",") <*> infinity
-        , braces (repeat <$> int <*> (string "," *> int))
+        [ string "*" |> keep infinity |> map (repeat 0)
+        , map (repeat 1) (string "+" |> keep infinity)
+        , string "?" |> onsuccess (repeat 0 1)
+        , braces (maybe (string ",") |> keep int) |> map (\i -> repeat i i)
+        , braces (int |> ignore (string ",")) |> map repeat |> andMap infinity
+        , braces ((string "," |> keep int) |> map repeat |> andMap int)
         ]
 
 
 singletons : Parser State (Generator (List Int))
 singletons =
-    Random.map List.singleton
-        <$> choice
-                [ dot_
-                , range_
-                , escape
-                , constat_
-                ]
+    [ dot_, range_, escape, constat_ ]
+        |> choice
+        |> map (Random.map List.singleton)
 
 
 encoding : Parser State Encoding
@@ -183,65 +179,70 @@ infinity =
 
 dot_ : Parser State (Generator Int)
 dot_ =
-    random_dot <$> (string "." *> encoding)
+    string "."
+        |> keep encoding
+        |> map random_dot
 
 
 random_dot : Encoding -> Generator Int
-random_dot encoding =
-    case encoding of
+random_dot enc =
+    case enc of
         ASCII ->
-            32 ... (2 ^ 8)
+            range 32 (2 ^ 8)
 
         UNICODE ->
-            32 ... (2 ^ 16)
+            range 32 (2 ^ 16)
 
 
 random_dotX : Encoding -> Generator Int
-random_dotX encoding =
-    case encoding of
+random_dotX enc =
+    case enc of
         ASCII ->
-            10 ... (2 ^ 8)
+            range 10 (2 ^ 8)
 
         UNICODE ->
-            10 ... (2 ^ 16)
+            range 10 (2 ^ 16)
 
 
 range_ : Parser State (Generator Int)
 range_ =
-    (\from to -> string2code from ... string2code to)
-        <$> regex "[^\\(\\[]"
-        <*> (string "-" *> regex "[^\\)\\]]")
+    regex "[^\\(\\[]"
+        |> map (\from to -> range (string2code from) (string2code to))
+        |> andMap (string "-" |> keep (regex "[^\\)\\]]"))
 
 
 constat_ : Parser State (Generator Int)
 constat_ =
-    (string2code >> RandomX.constant) <$> regex "[^\\[\\]\\(\\)\\|\\?]"
+    regex "[^\\[\\]\\(\\)\\|\\?]"
+        |> map (string2code >> Random.constant)
 
 
 choice_ : Parser State (Generator (List Int))
 choice_ =
-    (\re enc ->
-        enc
-            |> random_dotX
-            |> Random.map List.singleton
-            |> RandomX.filter (regex_filter <| Regex.regex re)
-    )
-        <$> regex "\\[[^\\]]*\\]"
-        <*> encoding
+    regex "\\[[^\\]]*\\]"
+        |> map
+            (\re enc ->
+                enc
+                    |> random_dotX
+                    |> Random.map List.singleton
+                    |> RandomX.filter (Regex.fromString re |> Maybe.withDefault Regex.never |> regex_filter)
+            )
+        |> andMap encoding
 
 
 group_ : Parser State (Generator (List Int))
 group_ =
-    RandomX.choices
-        <$> parens
-                (sepBy (string "|")
-                    (RandomX.combine >> Random.map List.concat <$> many options)
-                )
+    parens
+        (sepBy (string "|")
+            (map (RandomX.combine >> Random.map List.concat) (many options))
+        )
+        |> map (RandomX.combine >> Random.map List.concat)
 
 
 regex_regex : Parser State Regex.Regex
 regex_regex =
-    Regex.regex <$> regex "(\\[\\^?[^\\]]+\\]|\\([^\\)]+\\)|\\w)([+*]|\\{[^\\}]\\})?"
+    regex "(\\[\\^?[^\\]]+\\]|\\([^\\)]+\\)|\\w)([+*]|\\{[^\\}]\\})?"
+        |> map (Regex.fromString >> Maybe.withDefault Regex.never)
 
 
 non_greedy : Regex.Regex -> Generator (List Int) -> Generator (List Int)
@@ -268,42 +269,47 @@ repeat from to p =
 escape : Parser State (Generator Int)
 escape =
     string "\\"
-        *> choice
-            [ string "d" $> 48 ... 57
-            , filter (\i -> (i < 48) || (i > 57)) <$> (string "D" *> encoding)
-            , string "w"
-                $> (words
-                        |> RandomX.sample
-                        |> Random.map (Maybe.withDefault 65)
-                   )
-            , filter (\i -> not <| List.member i words) <$> (string "W" *> encoding)
-            , (\enc ->
-                enc
-                    |> spaces
-                    |> RandomX.sample
-                    |> Random.map (Maybe.withDefault 32)
-              )
-                <$> (string "s" *> encoding)
-            , (\enc ->
-                filter (\i -> not <| List.member i <| spaces enc) enc
-              )
-                <$> (string "S" *> encoding)
-            , string "n" $> RandomX.constant 10
-            , string "t" $> RandomX.constant 9
-            , string "r" $> RandomX.constant 13
-            , string "f" $> RandomX.constant 12
-            , string "v" $> RandomX.constant 11
-            , string "b" $> RandomX.constant 8
-            , string "0" $> RandomX.constant 0
-            , hex_string <$> (string "x" *> regex "[0-9A-Fa-f]{2}")
-            , hex_string <$> (string "u" *> regex "[0-9A-Fa-f]{4}")
-            , string2code >> RandomX.constant <$> regex "."
-            ]
+        |> keep
+            (choice
+                [ string "d" |> onsuccess (range 48 57)
+                , map (filter (\i -> (i < 48) || (i > 57))) (string "D" |> keep encoding)
+                , string "w"
+                    |> onsuccess
+                        (words
+                            |> RandomX.sample
+                            |> Random.map (Maybe.withDefault 65)
+                        )
+                , map (filter (\i -> not <| List.member i words)) (string "W" |> keep encoding)
+                , map
+                    (\enc ->
+                        enc
+                            |> spaces
+                            |> RandomX.sample
+                            |> Random.map (Maybe.withDefault 32)
+                    )
+                    (string "s" |> keep encoding)
+                , map
+                    (\enc ->
+                        filter (\i -> not <| List.member i <| spaces enc) enc
+                    )
+                    (string "S" |> keep encoding)
+                , string "n" |> onsuccess (Random.constant 10)
+                , string "t" |> onsuccess (Random.constant 9)
+                , string "r" |> onsuccess (Random.constant 13)
+                , string "f" |> onsuccess (Random.constant 12)
+                , string "v" |> onsuccess (Random.constant 11)
+                , string "b" |> onsuccess (Random.constant 8)
+                , string "0" |> onsuccess (Random.constant 0)
+                , map hex_string (string "x" |> keep (regex "[0-9A-Fa-f]{2}"))
+                , map hex_string (string "u" |> keep (regex "[0-9A-Fa-f]{4}"))
+                , map (string2code >> Random.constant) (regex ".")
+                ]
+            )
 
 
 spaces : Encoding -> List Int
-spaces encoding =
-    case encoding of
+spaces enc =
+    case enc of
         ASCII ->
             [ 9, 10, 11, 12, 13, 32, 160 ]
 
@@ -321,16 +327,16 @@ words =
 
 
 filter : (Int -> Bool) -> Encoding -> Generator Int
-filter fn encoding =
-    case encoding of
+filter fn enc =
+    case enc of
         ASCII ->
-            RandomX.filter fn (0 ... (2 ^ 8))
+            RandomX.filter fn (range 0 (2 ^ 8))
 
         UNICODE ->
-            RandomX.filter fn (0 ... (2 ^ 16))
+            RandomX.filter fn (range 0 (2 ^ 16))
 
 
-string2code : String -> Char.KeyCode
+string2code : String -> Int
 string2code =
     String.toList >> List.head >> Maybe.withDefault ' ' >> Char.toCode
 
@@ -340,5 +346,5 @@ hex_string hex =
     "0x"
         ++ hex
         |> String.toInt
-        |> Result.withDefault 32
-        |> RandomX.constant
+        |> Maybe.withDefault 32
+        |> Random.constant
