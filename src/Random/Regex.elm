@@ -46,6 +46,7 @@ import Combine exposing (..)
 import Combine.Num exposing (..)
 import Random exposing (Generator)
 import Random.Extra as RandomX
+import Random.List
 import Regex
 
 
@@ -236,7 +237,15 @@ group_ =
         (sepBy (string "|")
             (map (RandomX.combine >> Random.map List.concat) (many options))
         )
-        |> map (RandomX.combine >> Random.map List.concat)
+        |> map
+            (\list ->
+                case list of
+                    [] ->
+                        Random.map (\_ -> []) (Random.int 0 0)
+
+                    x :: xs ->
+                        RandomX.choices x xs
+            )
 
 
 regex_regex : Parser State Regex.Regex
