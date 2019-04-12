@@ -167,7 +167,7 @@ $1.47
 
 ### Lorem ipsum ...
 
-See the reult first, before you see the crazy Regex, no kind person should ever
+See the result first, before you see the crazy Regex, no kind person should ever
 be forced to write 8-)
 
 ``` text
