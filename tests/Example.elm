@@ -1,10 +1,9 @@
 module Example exposing (currency, date, hash, lorem, numbers, time)
 
 import Expect exposing (Expectation)
-import Fuzz exposing (Fuzzer, int, list, string)
+import Fuzz exposing (Fuzzer)
 import Random.Regex exposing (Encoding(..))
 import Regex
-import Shrink
 import Test exposing (..)
 
 
@@ -12,7 +11,7 @@ fuzzRegex : String -> Fuzzer String
 fuzzRegex str =
     case Random.Regex.generate ASCII 199 str of
         Ok re ->
-            Fuzz.custom re Shrink.noShrink
+            Fuzz.fromGenerator re
 
         Err info ->
             Fuzz.invalid ("not a valid regular expression (" ++ str ++ ") => " ++ info)
